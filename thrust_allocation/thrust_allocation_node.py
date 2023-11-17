@@ -23,14 +23,12 @@ class ThrustAllocation(Node):
         self.imu = Imu()
         self.wrench_cmd = Wrench()
         #Define the publishers here
-        self.vel_pub_ = self.create_publisher(clearpath_platform_msgs/msg/Drive, '/cmd_vel', 10)
-
+        self.atitude_pub_ = self.create_publisher(sensor_msgs/msg/Imu, '/angular_velocity', 10) #geometry_msgs/Vector3 angular_velocity
+        self.vel_pub_ = self.create_publisher(clearpath_platform_msgs/msg/Drive, '/cmd_vel', 10) #Drive does not exist in ROS2, do I create this msg?
         #Define the subscribers here
         self.wrench_sub_ = self.create_subscription(geometry_msgs/msg/WrenchStamped, '/wrench_cmd', self.wrench_callback, 10)
-
         #Variable to track the current time
         self.current_time = self.get_clock().now()
-
         #Set the timer period and define the timer function that loops at the desired rate
         time_period = 1/10
         self.time = self.create_timer(time_period, self.timer_callback)
@@ -38,21 +36,21 @@ class ThrustAllocation(Node):
     #How fast do we spin the motor
     def u(self):
         #We know the force in x-direction is Fx and the torque about the z-axis is tau_z supplied by motor
-        self.FT = np.matrix(Fx,tau_z)
-
-        #We have a matrix of forces
-        self.T = np.matrix(n,r) = [1 0 1 0 1; 0 1 0 1 0; 0 lx1 0 lx2 -ly3]
-
-        #K is a diagonal force coeficient matrix... Make a matrix of 0s and n along the diagonal
-        self.k = np.zeros(4,4)
-        self.k = np.fill_diagonal(n)
-
-        #make psi
-        self.psi = something
-
+        self.Fx = geometry_msgs/msg/Wrench.force.x
+        self.tau_z = geometry_msgs/msg/Wrench.torque.z
+        self.FT = np.mat('Fx tau_z') #these need to come from pub sub I think
+        #We have a matrix of forces of size (n,r)
+        self.T = np.mat['1 0 1 0 1; 0 1 0 1 0; 0 lx1 0 lx2 -ly3'] #this is from the book, idk if it is true for 4 wheels
+        #K is a diagonal force coeficient matrix... Make a matrix of 0s and K gains along the diagonal
+        self.k = np.zeros(4,4) 
+        self.K = ([1,1,1,1]) #I feel like 1 is a good place to start for a gain but idk
+        self.k = np.fill_diagonal(self.K)
+        #Make the dagger exponent for the inverse geometry
+        self.T_dagger = np.matmul(np.transpose(self.T), np.linalg.inv(np.matmul(self.T, np.transpose(self.T))))
         #Make u vector of motor speed we want to solve for
-        self.initu = np.array(4,1)
-        return u = np.linalg.inv(self.initu) * self.T * self.psi * self.FT
+        # self.u = np.array(4,1) #I do not think I need this line
+        self.u = np.linalg.inv(self.initu) * self.T**(self.T_dagger) * self.FT
+        return self.u
 
     #This is the timer function that runs at the desired rate from above
     # def timer_callback(self):
@@ -71,7 +69,6 @@ class ThrustAllocation(Node):
     #Put your callback functions here - these are run whenever the node loops and when there are messages available to process.
     def Wrench_callback(self, msg):
         self.wrench = msg
-
     #Imu callback function
     def Imu_callback(self,msg):
         self.imu = msg
