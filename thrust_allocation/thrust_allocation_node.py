@@ -32,43 +32,48 @@ class ThrustAllocation(Node):
         #Set the timer period and define the timer function that loops at the desired rate
         time_period = 1/10
         self.time = self.create_timer(time_period, self.timer_callback)
+        self.k = np.zeros(4,4)
 
     #How fast do we spin the motor
-    def u(self):
+    def vel_update(self):
         #We know the force in x-direction is Fx and the torque about the z-axis is tau_z supplied by motor
-        self.Fx = geometry_msgs/msg/Wrench.force.x
-        self.tau_z = geometry_msgs/msg/Wrench.torque.z
-        self.FT = np.mat('Fx tau_z') #these need to come from pub sub I think
+        Fx = self.wrench_cmd.force.x
+        tau_z = self.wrench_cmd.torque.z
+        tau = np.zeros([2,1]) #these need to come from pub sub I think
+        tau[0] = Fx
+        tau[1] = tau_z
         #We have a matrix of forces of size (n,r)
-        self.T = np.mat['1 0 1 0 1; 0 1 0 1 0; 0 lx1 0 lx2 -ly3'] #this is from the book, idk if it is true for 4 wheels
+        T = np.mat['1 1 1 1 1; -1 1 -1 1'] #4 control surefaces with 2 directions (one front back one yaw)
         #K is a diagonal force coeficient matrix... Make a matrix of 0s and K gains along the diagonal
-        self.k = np.zeros(4,4) 
-        self.K = ([1,1,1,1]) #I feel like 1 is a good place to start for a gain but idk
-        self.k = np.fill_diagonal(self.K)
+        k = np.zeros(4,4) 
+        K = ([1,1,1,1]) #I feel like 1 is a good place to start for a gain but idk
+        k = np.fill_diagonal(K)
+        K_inv = np.linalg.inv(k)
         #Make the dagger exponent for the inverse geometry
-        self.T_dagger = np.matmul(np.transpose(self.T), np.linalg.inv(np.matmul(self.T, np.transpose(self.T))))
+        T_dagger = np.matmul(np.transpose(T), np.linalg.inv(np.matmul(T, np.transpose(T)))) #eqn 12.254 in foss-thorin
         #Make u vector of motor speed we want to solve for
         # self.u = np.array(4,1) #I do not think I need this line
-        self.u = np.linalg.inv(self.initu) * self.T**(self.T_dagger) * self.FT
-        return self.u
+        u = np.matmul(self.K_inv, np.matmul(elf.T_dagger, self.tau))
+        return u
 
     #This is the timer function that runs at the desired rate from above
-    # def timer_callback(self):
+     def timer_callback(self):
 
-    #     #This is an example on how to create a message,
-    #     #fill in the header information and add some
-    #     #data, then publish
-    #     self.twist_msg = TwistStamped()
-    #     self.twist_msg.header.stamp = self.get_clock().now().to_msg()
-    #     self.twist_msg.twist.linear.x = 10.0
-    #     self.twist_pub_.publish(self.twist_msg)
+         #This is an example on how to create a message,
+         #fill in the header information and add some
+         #data, then publish
+         self.twist_msg = TwistStamped()
+         self.twist_msg.header.stamp = self.get_clock().now().to_msg()
+         self.twist_msg.twist.linear.x = 10.0
+         self.twist_pub_.publish(self.twist_msg)
 
-        # #This is how to keep track of the current time in a ROS2 node
-        # self.current_time = self.get_clock().now()
+         #This is how to keep track of the current time in a ROS2 node
+         self.current_time = self.get_clock().now()
+         wheel_vel = self.vel_update()
 
     #Put your callback functions here - these are run whenever the node loops and when there are messages available to process.
     def Wrench_callback(self, msg):
-        self.wrench = msg
+        self.wrench_cmd = self.msg
     #Imu callback function
     def Imu_callback(self,msg):
         self.imu = msg
