@@ -50,7 +50,7 @@ class ThrustAllocation(Node):
         k = np.fill_diagonal(K)
         K_inv = np.linalg.inv(k)
         #Make the dagger exponent for the inverse geometry
-        T_dagger = np.matmul(np.transpose(T), np.linalg.inv(np.matmul(T, np.transpose(T)))) #eqn 12.254 in foss-thorin
+        T_dagger = np.matmul(np.transpose(T), np.linalg.inv(np.matmul(T, np.transpose(T)))) #eqn 12.252 in foss-thorin
         #Make u vector of motor speed we want to solve for
         # self.u = np.array(4,1) #I do not think I need this line
         u = np.matmul(self.K_inv, np.matmul(elf.T_dagger, self.tau))
