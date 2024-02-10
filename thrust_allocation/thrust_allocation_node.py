@@ -10,8 +10,8 @@ import os
 
 #Import the interfaces here
 #for example, using the Header msg from the std_msgs package
-from geometry_msgs.msg import Wrench
-from sensor_msgs.msg import Imu
+from geometry_msgs.msg import WrenchStamped
+from clearpath_platform_msgs.msg import Drive
 
 #Define your class - use package name with camel case capitalization
 class ThrustAllocation(Node):
@@ -20,13 +20,11 @@ class ThrustAllocation(Node):
         #Create the node with whatever name (package name + node)
         super().__init__('force_torque_control thrust_allocation')
         #Initialize imu and wrench objects
-        self.imu = Imu()
         self.wrench_cmd = Wrench()
         #Define the publishers here
-        self.atitude_pub_ = self.create_publisher(sensor_msgs/msg/Imu, '/angular_velocity', 10) #geometry_msgs/Vector3 angular_velocity
-        self.vel_pub_ = self.create_publisher(clearpath_platform_msgs/msg/Drive, '/cmd_vel', 10) #Drive does not exist in ROS2, do I create this msg?
+        self.cmd_pub_ = self.create_publisher(Drive, '/drive', 10)
         #Define the subscribers here
-        self.wrench_sub_ = self.create_subscription(geometry_msgs/msg/WrenchStamped, '/wrench_cmd', self.wrench_callback, 10)
+        self.wrench_sub_ = self.create_subscription(WrenchStamped, '/wrench_cmd', self.wrench_callback, 10)
         #Variable to track the current time
         self.current_time = self.get_clock().now()
         #Set the timer period and define the timer function that loops at the desired rate
@@ -53,7 +51,7 @@ class ThrustAllocation(Node):
         T_dagger = np.matmul(np.transpose(T), np.linalg.inv(np.matmul(T, np.transpose(T)))) #eqn 12.252 in foss-thorin
         #Make u vector of motor speed we want to solve for
         # self.u = np.array(4,1) #I do not think I need this line
-        u = np.matmul(self.K_inv, np.matmul(elf.T_dagger, self.tau))
+        u = np.matmul(K_inv, np.matmul(T_dagger, tau))
         return u
 
     #This is the timer function that runs at the desired rate from above
@@ -62,10 +60,10 @@ class ThrustAllocation(Node):
          #This is an example on how to create a message,
          #fill in the header information and add some
          #data, then publish
-         self.twist_msg = TwistStamped()
-         self.twist_msg.header.stamp = self.get_clock().now().to_msg()
-         self.twist_msg.twist.linear.x = 10.0
-         self.twist_pub_.publish(self.twist_msg)
+         cmd_msg.mode = Drive()
+         u = self.vel_update()
+         cmd_msg.drivers = [u(0), u(1)]
+         self.cmd_pub_.publish(self.cmd_msg)
 
          #This is how to keep track of the current time in a ROS2 node
          self.current_time = self.get_clock().now()
@@ -74,9 +72,6 @@ class ThrustAllocation(Node):
     #Put your callback functions here - these are run whenever the node loops and when there are messages available to process.
     def Wrench_callback(self, msg):
         self.wrench_cmd = self.msg
-    #Imu callback function
-    def Imu_callback(self,msg):
-        self.imu = msg
 
     #     #This is an example on how to compare the current time
     #     #to the time in a message
