@@ -41,11 +41,20 @@ class ThrustAllocation(Node):
     #How fast do we spin the motor
     def vel_update(self):
         #We know the force in x-direction is Fx and the torque about the z-axis is tau_z supplied by motor
-        Fx = self.wrench_cmd.force.x
-        tau_z = self.wrench_cmd.torque.z
+        if self.wrench_cmd.force.x == None:
+            Fx = 0.0
+        else:
+            Fx = self.wrench_cmd.force.x
+        
+        if self.wrench_cmd.torque.z == None:
+            tau_z = 0.0
+        else:
+            tau_z = self.wrench_cmd.torque.z
+        
         tau = np.zeros((2,1)) #these need to come from pub sub I think
         tau[0] = Fx
         tau[1] = tau_z
+        # self.get_logger().warn(f'{tau}')
         #We have a matrix of forces of size (n,r)
         #We have a matrix of forces of size (n,r)
         T = np.array([[1, 1, 1, 1], [-1, 1, -1, 1]]) #4 control surefaces with 2 directions (one front back one yaw)
@@ -58,14 +67,14 @@ class ThrustAllocation(Node):
         K_inv = np.linalg.inv(ka)
         # print(K_inv)
         #Make the dagger exponent for the inverse geometry
-        print(np.transpose(T))
+        # print(np.transpose(T))
         # print(np.matmul(T, np.transpose(T)[0]))
         T_dagger = np.matmul(np.transpose(T), np.linalg.inv(np.matmul(T, np.transpose(T)))) #eqn 12.252 in foss-thorin
-
+        # self.get_logger().warn(f'{T_dagger}')
         #Make u vector of motor speed we want to solve for
         # self.u = np.array(4,1) #I do not think I need this line
         u = np.matmul(K_inv, np.matmul(T_dagger, tau))
-        #    return u
+        return u
 
     #This is the timer function that runs at the desired rate from above
     def timer_callback(self):
@@ -75,7 +84,10 @@ class ThrustAllocation(Node):
          #data, then publish
          cmd_msg = Drive()
          u = self.vel_update()
-         cmd_msg.drivers = [u(0), u(1)]
+        #  self.get_logger().warn(f'{u}')
+        #  self.get_logger().warn(f'u[{u[0]}], u[{u[0]}]')
+         cmd_msg.drivers[0] = u[0]
+         cmd_msg.drivers[1] = u[1]
          self.cmd_pub_.publish(cmd_msg)
 
          #This is how to keep track of the current time in a ROS2 node
